@@ -22,7 +22,12 @@ app = FastAPI(title="Cyber Attack Detection API")
 
 # Dynamic request model
 class FeatureRequest(BaseModel):
-    __annotations__ = {f: float for f in sanitized_features}
+    __annotations__ = {
+        feature.replace(" ", "_")
+               .replace("/", "_")
+               .replace(".", "_"): float
+        for feature in features
+    }
 
 @app.get("/")
 def root():
@@ -31,12 +36,25 @@ def root():
 @app.post("/predict")
 def predict(request: FeatureRequest):
     try:
-        # Convert request to DataFrame and map back to original feature names
-        data_dict = {feature_map[f]: float(getattr(request, f)) for f in sanitized_features}
-        df = pd.DataFrame([data_dict])
+        # Convert request to dict
+        request_dict = request.dict()
 
-        # Predict
+        # Map back to original feature names
+        corrected_dict = {}
+
+        for feature in features:
+            safe_name = (
+                feature.replace(" ", "_")
+                       .replace("/", "_")
+                       .replace(".", "_")
+            )
+            corrected_dict[feature] = request_dict[safe_name]
+
+        df = pd.DataFrame([corrected_dict])
+
         prediction = model.predict(df)[0]
+
         return {"prediction": prediction}
+
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
